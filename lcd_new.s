@@ -37,6 +37,19 @@ reset:
 ;
 ; Code starts here
 ;
+; Output a "Hello world type message on the LCD"
+  ldx #0
+print:
+  lda message,x
+  beq loop
+  jsr print_char
+  inx
+  jmp print
+
+loop:
+  jmp loop
+
+message: .asciiz " 65C02 Computer   by Kelly Loyd"
 
 
 ; LCD subroutines
@@ -119,7 +132,7 @@ print_char:
   eor #E          ; Clear E bit
   sta PORTB
   rts
-  
+
 
   .org $fffc
   .word reset
