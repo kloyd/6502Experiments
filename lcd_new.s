@@ -49,7 +49,10 @@ print:
 loop:
   jmp loop
 
-message: .asciiz " 65C02 Computer   by Kelly Loyd"
+; Message text zero terminated.
+; LCD char positions.      11111111112222222222333333333344444444445
+;                 12345678901234567890123456789012345678901234567890
+message: .asciiz " 65C02 Computer                          Kelly Loyd MMR"
 
 
 ; LCD subroutines
@@ -85,7 +88,12 @@ lcd_init:
   sta PORTB
   ora #E
   sta PORTB
+  lda #%00001000 ; 2 lines
   and #%00001111
+  sta PORTB
+  ora #E
+  sta PORTB
+  eor #E
   sta PORTB
   rts
 

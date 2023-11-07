@@ -116,7 +116,12 @@ lcd_init:
   sta PORTB
   ora #E
   sta PORTB
+  lda #%00001000 ; 2 lines
   and #%00001111
+  sta PORTB
+  ora #E
+  sta PORTB
+  xra #E
   sta PORTB
   rts
 
