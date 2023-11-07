@@ -1,4 +1,11 @@
-; lcd_new
+;-------------------------------------
+; lcd_new.s
+;
+; Author: Kelly Loyd
+; Derived from examples provided by Ben Eater ( https://eater.net/6502 )
+;
+
+; --- 65C22 PIA ports and data direction registers.
 PORTB = $6000
 PORTA = $6001
 DDRB = $6002
@@ -7,13 +14,15 @@ PCR = $600c
 IFR = $600d
 IER = $600e
 
+; E, RW, RS lines on LCD connected to PB6, PB5, PB4
 E  = %01000000
 RW = %00100000
 RS = %00010000
 
+; $8000 base address of EEROM
   .org $8000
 
-; Initialization
+; Initialization - Set the Stack pointer to $1FF
 reset:
   ldx #$ff
   txs
@@ -37,7 +46,7 @@ reset:
 ;
 ; Code starts here
 ;
-; Output a "Hello world type message on the LCD"
+; Output a a message to the LCD panel at PORT B on the 65C22 PIA.
   ldx #0
 print:
   lda message,x
@@ -50,6 +59,9 @@ loop:
   jmp loop
 
 ; Message text zero terminated.
+; LCD DRAM holds 40 locations per line. 
+; To start on second line, the text must start at character 41
+; It would be smarter to use character cursor position commands on the LCD. For a future iteration.
 ; LCD char positions.      11111111112222222222333333333344444444445
 ;                 12345678901234567890123456789012345678901234567890
 message: .asciiz " 65C02 Computer                          Kelly Loyd MMR"
@@ -142,8 +154,8 @@ print_char:
   rts
 
 
+; Put Reset Vector @ $FFFC as per 6502 documentation.
   .org $fffc
   .word reset
+; Pad rom out to 32K
   .word $0000
-
-;/dev/cu.PL2303G-USBtoUART14640
