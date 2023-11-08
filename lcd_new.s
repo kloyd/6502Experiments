@@ -38,7 +38,7 @@ reset:
   jsr lcd_instruction
   lda #%00001110 ; Display on; cursor on; blink off
   jsr lcd_instruction
-  lda #%00000110 ; Increment and shift cursor; don't shift display
+  lda #%00000110 ; Entry Mode Set - Increment and shift cursor; don't shift display
   jsr lcd_instruction
   lda #%00000001 ; Clear display
   jsr lcd_instruction
@@ -46,26 +46,65 @@ reset:
 ;
 ; Code starts here
 ;
-; Output a a message to the LCD panel at PORT B on the 65C22 PIA.
+; Output line 1 to the LCD panel at PORT B on the 65C22 PIA.
+out_line_1:
   ldx #0
-print:
-  lda message,x
-  beq loop
+print_line_1:
+  lda line_1,x
+  beq out_line_2
   jsr print_char
   inx
-  jmp print
+  jmp print_line_1
+
+out_line_2:
+; move LCD cursor to line 2.
+  lda #%10000000 ; set dram address - add in the character offset 
+; for 16 x 2 display, second line starts at 40
+  ora #40 ; try to get to 40
+  jsr lcd_instruction
+;
+  ldx #0
+print_line_2:
+  lda line_2,x
+  beq out_line_2
+  jsr print_char
+  inx
+  jmp print_line_2
+
+next_operation:
 
 loop:
   jmp loop
 
-; Message text zero terminated.
-; LCD DRAM holds 40 locations per line. 
-; To start on second line, the text must start at character 41
-; It would be smarter to use character cursor position commands on the LCD. For a future iteration.
-; LCD char positions.      11111111112222222222333333333344444444445
-;                 12345678901234567890123456789012345678901234567890
-message: .asciiz " 65C02 Computer                          Kelly Loyd MMR"
+; Message to print for line 1 and line 2 of the LCD.
+line_1: .asciiz " 65C02 Computer"
+line_2: .asciiz " Kelly Loyd MMR"
 
+;
+; output a character to current LCD char position.
+;
+print_char:
+  jsr lcd_wait
+  pha
+  lsr
+  lsr
+  lsr
+  lsr             ; Send high 4 bits
+  ora #RS         ; Set RS
+  sta PORTB
+  ora #E          ; Set E bit to send instruction
+  sta PORTB
+  eor #E          ; Clear E bit
+  sta PORTB
+  pla
+  and #%00001111  ; Send low 4 bits
+  ora #RS         ; Set RS
+  sta PORTB
+  ora #E          ; Set E bit to send instruction
+  sta PORTB
+  eor #E          ; Clear E bit
+  sta PORTB
+  rts
 
 ; LCD subroutines
 lcd_wait:
@@ -130,32 +169,13 @@ lcd_instruction:
   sta PORTB
   rts
 
-print_char:
-  jsr lcd_wait
-  pha
-  lsr
-  lsr
-  lsr
-  lsr             ; Send high 4 bits
-  ora #RS         ; Set RS
-  sta PORTB
-  ora #E          ; Set E bit to send instruction
-  sta PORTB
-  eor #E          ; Clear E bit
-  sta PORTB
-  pla
-  and #%00001111  ; Send low 4 bits
-  ora #RS         ; Set RS
-  sta PORTB
-  ora #E          ; Set E bit to send instruction
-  sta PORTB
-  eor #E          ; Clear E bit
-  sta PORTB
-  rts
-
 
 ; Put Reset Vector @ $FFFC as per 6502 documentation.
   .org $fffc
   .word reset
 ; Pad rom out to 32K
   .word $0000
+
+
+
+;#define LCD_SETDDRAMADDR 0x80 or col + row offset
