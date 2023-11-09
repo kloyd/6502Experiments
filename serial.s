@@ -6,30 +6,20 @@ PCR = $600c
 IFR = $600d
 IER = $600e
 
-kb_wptr = $0000
-kb_rptr = $0001
-kb_flags = $0002
-
-RELEASE = %00000001
-SHIFT   = %00000010
-
-kb_buffer = $0200  ; 256-byte kb buffer 0200-02ff
-
 E  = %01000000
 RW = %00100000
 RS = %00010000
+
+ACIA_DATA = $5000
+ACIA_STATUS = $5001
+ACIA_CMD = $5002
+ACIA_CTRL = $5003
 
   .org $8000
 
 reset:
   ldx #$ff
   txs
-
-  lda #$01
-  sta PCR
-  lda #$82
-  sta IER
-  cli
 
   lda #%11111111 ; Set all pins on port B to output
   sta DDRB
@@ -46,53 +36,63 @@ reset:
   lda #%00000001 ; Clear display
   jsr lcd_instruction
 
- rx_wait:
-   bit PORTA   ; Put PORTA.6 into V flag
-   bvs rx_wait ; Loop if no start bit yet.
-   jsr half_bit_delay
+; --- start
+  lda #$00
+  sta ACIA_STATUS  ; soft reset
 
-; Stop bit sent, try to assemble the bits.
-  ldx #8
-read_bit:
-  jsr bit_delay
-  bit PORTA   ; PORTA.6 -> V 
-  bvs recv_1
-  clc
-  jmp rx_done
-recv_1:
-  sec 
-  nop 
-  nop
-rx_done:
-  ror
-  dex
-  bne read_bit
-  
-  jsr print_char
-  
-  jsr bit_delay
-  
+  lda #$1f    ; N-8-1, 19200 baud
+  sta ACIA_CTRL
+
+  lda #$0b    ; no parity, no echo, no interrupts.
+  sta ACIA_CMD
+
+; Greeting to terminal
+  ldx #0
+send_msg:
+  lda message,x 
+  beq done 
+  jsr send_char 
+  inx 
+  jmp send_msg 
+done:
+
+rx_wait:
+  lda ACIA_STATUS
+  and #$08   ; check rx buffer status flag
+  beq rx_wait
+
+  lda ACIA_DATA   ; get byte
+  jsr print_char  ; lcd output
+  jsr send_char   ;  terminal output
+
   jmp rx_wait
 
-bit_delay:
+send_char:
+  sta ACIA_DATA
+  pha
+tx_wait:
+  lda ACIA_STATUS
+  and #$10    ; check tx buffer status
+  beq tx_wait
+  jsr tx_delay  ; work around for TX bug.
+  pla
+  rts
+
+tx_delay:
   phx
-  ldx #13
-bit_delay_l:
+  ldx #100
+tx_delay_1:
   dex
-  bne bit_delay_l
+  bne tx_delay_1
   plx
   rts
 
-half_bit_delay:
-  phx
-  ldx #6
-h_bit_delay_l:
-  dex
-  bne h_bit_delay_l
-  plx
-  rts
+message: .asciiz "Hello, world!"
 
+end_prog:
+  jmp end_prog
 
+; --- subroutines
 lcd_wait:
   pha
   lda #%11110000  ; LCD data is input
@@ -169,6 +169,7 @@ print_char:
   eor #E          ; Clear E bit
   sta PORTB
   pla
+  pha               ; save it since it will get trampled.
   and #%00001111  ; Send low 4 bits
   ora #RS         ; Set RS
   sta PORTB
@@ -176,6 +177,7 @@ print_char:
   sta PORTB
   eor #E          ; Clear E bit
   sta PORTB
+  pla       ; get A back.
   rts
 
 
