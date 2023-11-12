@@ -1,4 +1,4 @@
-  .org $0000
+  .org $1000
 
 ; Apple 1 Wozmon.
 ECHO = $FFEF
