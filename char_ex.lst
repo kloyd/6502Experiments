@@ -1,0 +1,46 @@
+Sections:
+00: "seg0" (0-28)
+
+
+Source: "char_ex.s"
+                        	     1:   .org $0000
+                        	     2: 
+                        	     3: ; Apple 1 Wozmon.
+                        	     4: ECHO = $FFEF
+                        	     5: WOZENTRY = $FF00
+                        	     6: 
+00:0000 A200            	     7:   ldx #0
+                        	     8: out_hello_string:
+00:0002 B515            	     9:   lda hello, x 
+00:0004 F007            	    10:   beq done_hello
+00:0006 20EFFF          	    11:   jsr ECHO
+00:0009 E8              	    12:   inx 
+00:000A 4C0200          	    13:   jmp out_hello_string
+                        	    14: 
+                        	    15: done_hello:
+00:000D A90D            	    16:   lda #$0D     ; cr
+00:000F 20EFFF          	    17:   jsr ECHO
+                        	    18:   
+00:0012 4C00FF          	    19:   jmp WOZENTRY
+                        	    20: 
+00:0015 57656C636F6D6520	    21: hello: .asciiz "Welcome to Wozmon!"
+00:001D 746F20576F7A6D6F
+00:0025 6E21
+00:0027 00
+                        	    22: 
+                        	    23: 
+
+
+Symbols by name:
+ECHO                             E:FFEF
+WOZENTRY                         E:FF00
+done_hello                       A:000D
+hello                            A:0015
+out_hello_string                 A:0002
+
+Symbols by value:
+0002 out_hello_string
+000D done_hello
+0015 hello
+FF00 WOZENTRY
+FFEF ECHO
