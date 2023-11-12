@@ -16,38 +16,23 @@ DDRA = $6003
 PCR = $600c
 IFR = $600d
 IER = $600e
-
+; --- 65C22 control Lines.
 ; E, RW, RS lines on LCD connected to PB6, PB5, PB4
 E  = %01000000
 RW = %00100000
 RS = %00010000
-
+; --- Wozmon entry points and defines.
 WOZMON = $FF00
-
-
+IN    = $0200                          ; Input buffer
+ECHO  = $FFEF
 ; ------- program start. 
 ; Start at 01000x in RAM using WozMon
   .org $1000
 
+; Program entry point. Initialize LCD.
+input_lcd:
+  jsr lcd_setup
 
-hello_world:
-; Initialize the LCD display - first 65C22 all outputs.
-; get ready to set the LCD
-  lda #$ff      ; Port B = All output
-  sta DDRB
-  lda #$ff      ; Port A = All output for blinkenlights!
-  sta DDRA
-
-; -- LCD Configuration. 4 bit mode, 2 line display
-  jsr lcd_init
-  lda #%00101000 ; Set 4-bit mode; 2-line display; 5x8 font
-  jsr lcd_instruction
-  lda #%00001110 ; Display on; cursor on; blink off
-  jsr lcd_instruction
-  lda #%00000110 ; Entry Mode Set - Increment and shift cursor; don't shift display
-  jsr lcd_instruction
-  lda #%00000001 ; Clear display
-  jsr lcd_instruction
 ;
 ;
 ; Code starts here
@@ -72,19 +57,65 @@ out_line_2:
   ldx #0
 print_line_2:
   lda line_2,x
-  beq done
+  beq lcd_done
   jsr print_char
   inx
   jmp print_line_2
 
+lcd_done:
+  ldx #0    ;note for future. is some way to set up zero page pointer to each message string and send it? 
+  ; Print STR subroutine.
+print_prompt_loop:
+  lda prompt,x
+  beq prompt_done
+  jsr ECHO
+  inx
+  jmp print_prompt_loop
+
+prompt_done:
+
+; now setup with default messages.
+; grab buffer
+  jsr get_input
+
 done:
-  jmp wozmon_entry  ; return to wozmon.
+  jmp WOZMON  ; return to wozmon.
 
 
 ; Message to print for line 1 and line 2 of the LCD.
-line_1: .asciiz " 65C02 Computer"
-line_2: .asciiz " Kelly Loyd MMR"
+line_1: .asciiz " "
+line_2: .asciiz ". 65C02 Computer"
+;                1234567890123456   ;; 16 chars
+prompt: .asciiz "Enter a string: "
 
+get_input:
+;; custom version of GETLINE from Wozmon.
+
+  rts
+
+
+lcd_setup:
+  pha          ; Save A
+; Initialize the LCD display - first 65C22 all outputs.
+; get ready to set the LCD
+  lda #$ff      ; Port B = All output
+  sta DDRB
+  lda #$ff      ; Port A = All output for blinkenlights!
+  sta DDRA
+
+; -- LCD Configuration. 4 bit mode, 2 line display
+  jsr lcd_init
+  lda #%00101000 ; Set 4-bit mode; 2-line display; 5x8 font
+  jsr lcd_instruction
+  lda #%00001110 ; Display on; cursor on; blink off
+  jsr lcd_instruction
+  lda #%00000110 ; Entry Mode Set - Increment and shift cursor; don't shift display
+  jsr lcd_instruction
+  lda #%00000001 ; Clear display
+  jsr lcd_instruction
+  
+  pla   ; restore A
+  rts
 ;
 ; output a character to current LCD char position.
 ;

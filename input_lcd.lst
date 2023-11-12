@@ -1,0 +1,277 @@
+Sections:
+00: "seg1000" (1000-1121)
+
+
+Source: "input_lcd.s"
+                        	     1: ;-------------------------------------
+                        	     2: ; input_lcd
+                        	     3: ;
+                        	     4: ; Author: Kelly Loyd
+                        	     5: ; Setup LCD output
+                        	     6: ; Prompt User for a string
+                        	     7: ; write string to LCD
+                        	     8: ; Repeat until empty string.
+                        	     9: ;
+                        	    10: 
+                        	    11: ; --- 65C22 PIA ports and data direction registers.
+                        	    12: PORTB = $6000
+                        	    13: PORTA = $6001
+                        	    14: DDRB = $6002
+                        	    15: DDRA = $6003
+                        	    16: PCR = $600c
+                        	    17: IFR = $600d
+                        	    18: IER = $600e
+                        	    19: ; --- 65C22 control Lines.
+                        	    20: ; E, RW, RS lines on LCD connected to PB6, PB5, PB4
+                        	    21: E  = %01000000
+                        	    22: RW = %00100000
+                        	    23: RS = %00010000
+                        	    24: ; --- Wozmon entry points and defines.
+                        	    25: WOZMON = $FF00
+                        	    26: IN    = $0200                          ; Input buffer
+                        	    27: ECHO  = $FFEF
+                        	    28: ; ------- program start. 
+                        	    29: ; Start at 01000x in RAM using WozMon
+                        	    30:   .org $1000
+                        	    31: 
+                        	    32: ; Program entry point. Initialize LCD.
+                        	    33: input_lcd:
+00:1000 205F10          	    34:   jsr lcd_setup
+                        	    35: 
+                        	    36: ;
+                        	    37: ;
+                        	    38: ; Code starts here
+                        	    39: ;
+                        	    40: ; Output line 1 to the LCD panel at PORT B on the 65C22 PIA.
+                        	    41: out_line_1:
+00:1003 A200            	    42:   ldx #0
+                        	    43: print_line_1:
+00:1005 BD3A10          	    44:   lda line_1,x
+00:1008 F007            	    45:   beq out_line_2
+00:100A 208310          	    46:   jsr print_char
+00:100D E8              	    47:   inx
+00:100E 4C0510          	    48:   jmp print_line_1
+                        	    49: 
+                        	    50: out_line_2:
+                        	    51: ; move LCD cursor to line 2.
+00:1011 A980            	    52:   lda #%10000000 ; set dram address - add in the character offset 
+                        	    53: ; for 16 x 2 display, second line starts at 40
+00:1013 0928            	    54:   ora #40 ; try to get to 40
+00:1015 20FB10          	    55:   jsr lcd_instruction
+                        	    56: ;
+00:1018 A200            	    57:   ldx #0
+                        	    58: print_line_2:
+00:101A BD3C10          	    59:   lda line_2,x
+00:101D F007            	    60:   beq lcd_done
+00:101F 208310          	    61:   jsr print_char
+00:1022 E8              	    62:   inx
+00:1023 4C1A10          	    63:   jmp print_line_2
+                        	    64: 
+                        	    65: lcd_done:
+00:1026 A200            	    66:   ldx #0    ;note for future. is some way to set up zero page pointer to each message string and send it? 
+                        	    67:   ; Print STR subroutine.
+                        	    68: print_prompt_loop:
+00:1028 BD4D10          	    69:   lda prompt,x
+00:102B F007            	    70:   beq prompt_done
+00:102D 20EFFF          	    71:   jsr ECHO
+00:1030 E8              	    72:   inx
+00:1031 4C2810          	    73:   jmp print_prompt_loop
+                        	    74: 
+                        	    75: prompt_done:
+                        	    76: 
+                        	    77: ; now setup with default messages.
+                        	    78: ; grab buffer
+00:1034 205E10          	    79:   jsr get_input
+                        	    80: 
+                        	    81: done:
+00:1037 4C00FF          	    82:   jmp WOZMON  ; return to wozmon.
+                        	    83: 
+                        	    84: 
+                        	    85: ; Message to print for line 1 and line 2 of the LCD.
+00:103A 20              	    86: line_1: .asciiz " "
+00:103B 00
+00:103C 2E20363543303220	    87: line_2: .asciiz ". 65C02 Computer"
+00:1044 436F6D7075746572
+00:104C 00
+                        	    88: ;                1234567890123456   ;; 16 chars
+00:104D 456E746572206120	    89: prompt: .asciiz "Enter a string: "
+00:1055 737472696E673A20
+00:105D 00
+                        	    90: 
+                        	    91: get_input:
+                        	    92: ;; custom version of GETLINE from Wozmon.
+                        	    93: 
+00:105E 60              	    94:   rts
+                        	    95: 
+                        	    96: 
+                        	    97: lcd_setup:
+00:105F 48              	    98:   pha          ; Save A
+                        	    99: ; Initialize the LCD display - first 65C22 all outputs.
+                        	   100: ; get ready to set the LCD
+00:1060 A9FF            	   101:   lda #$ff      ; Port B = All output
+00:1062 8D0260          	   102:   sta DDRB
+00:1065 A9FF            	   103:   lda #$ff      ; Port A = All output for blinkenlights!
+00:1067 8D0360          	   104:   sta DDRA
+                        	   105: 
+                        	   106: ; -- LCD Configuration. 4 bit mode, 2 line display
+00:106A 20DF10          	   107:   jsr lcd_init
+00:106D A928            	   108:   lda #%00101000 ; Set 4-bit mode; 2-line display; 5x8 font
+00:106F 20FB10          	   109:   jsr lcd_instruction
+00:1072 A90E            	   110:   lda #%00001110 ; Display on; cursor on; blink off
+00:1074 20FB10          	   111:   jsr lcd_instruction
+00:1077 A906            	   112:   lda #%00000110 ; Entry Mode Set - Increment and shift cursor; don't shift display
+00:1079 20FB10          	   113:   jsr lcd_instruction
+00:107C A901            	   114:   lda #%00000001 ; Clear display
+00:107E 20FB10          	   115:   jsr lcd_instruction
+                        	   116:   
+00:1081 68              	   117:   pla   ; restore A
+00:1082 60              	   118:   rts
+                        	   119: ;
+                        	   120: ; output a character to current LCD char position.
+                        	   121: ;
+                        	   122: print_char:
+00:1083 20AD10          	   123:   jsr lcd_wait
+00:1086 48              	   124:   pha
+00:1087 4A              	   125:   lsr
+00:1088 4A              	   126:   lsr
+00:1089 4A              	   127:   lsr
+00:108A 4A              	   128:   lsr             ; Send high 4 bits
+00:108B 0910            	   129:   ora #RS         ; Set RS
+00:108D 8D0060          	   130:   sta PORTB
+00:1090 0940            	   131:   ora #E          ; Set E bit to send instruction
+00:1092 8D0060          	   132:   sta PORTB
+00:1095 4940            	   133:   eor #E          ; Clear E bit
+00:1097 8D0060          	   134:   sta PORTB
+00:109A 68              	   135:   pla
+00:109B 290F            	   136:   and #%00001111  ; Send low 4 bits
+00:109D 0910            	   137:   ora #RS         ; Set RS
+00:109F 8D0060          	   138:   sta PORTB
+00:10A2 0940            	   139:   ora #E          ; Set E bit to send instruction
+00:10A4 8D0060          	   140:   sta PORTB
+00:10A7 4940            	   141:   eor #E          ; Clear E bit
+00:10A9 8D0060          	   142:   sta PORTB
+00:10AC 60              	   143:   rts
+                        	   144: 
+                        	   145: ; LCD subroutines
+                        	   146: lcd_wait:
+00:10AD 48              	   147:   pha
+00:10AE A9F0            	   148:   lda #%11110000  ; LCD data is input
+00:10B0 8D0260          	   149:   sta DDRB
+                        	   150: lcdbusy:
+00:10B3 A920            	   151:   lda #RW
+00:10B5 8D0060          	   152:   sta PORTB
+00:10B8 A960            	   153:   lda #(RW | E)
+00:10BA 8D0060          	   154:   sta PORTB
+00:10BD AD0060          	   155:   lda PORTB       ; Read high nibble
+00:10C0 48              	   156:   pha             ; and put on stack since it has the busy flag
+00:10C1 A920            	   157:   lda #RW
+00:10C3 8D0060          	   158:   sta PORTB
+00:10C6 A960            	   159:   lda #(RW | E)
+00:10C8 8D0060          	   160:   sta PORTB
+00:10CB AD0060          	   161:   lda PORTB       ; Read low nibble
+00:10CE 68              	   162:   pla             ; Get high nibble off stack
+00:10CF 2908            	   163:   and #%00001000
+00:10D1 D0E0            	   164:   bne lcdbusy
+                        	   165: 
+00:10D3 A920            	   166:   lda #RW
+00:10D5 8D0060          	   167:   sta PORTB
+00:10D8 A9FF            	   168:   lda #%11111111  ; LCD data is output
+00:10DA 8D0260          	   169:   sta DDRB
+00:10DD 68              	   170:   pla
+00:10DE 60              	   171:   rts
+                        	   172: 
+                        	   173: lcd_init:
+00:10DF A902            	   174:   lda #%00000010 ; Set 4-bit mode
+00:10E1 8D0060          	   175:   sta PORTB
+00:10E4 0940            	   176:   ora #E
+00:10E6 8D0060          	   177:   sta PORTB
+00:10E9 A908            	   178:   lda #%00001000 ; 2 lines
+00:10EB 290F            	   179:   and #%00001111
+00:10ED 8D0060          	   180:   sta PORTB
+00:10F0 0940            	   181:   ora #E
+00:10F2 8D0060          	   182:   sta PORTB
+00:10F5 4940            	   183:   eor #E
+00:10F7 8D0060          	   184:   sta PORTB
+00:10FA 60              	   185:   rts
+                        	   186: 
+                        	   187: lcd_instruction:
+00:10FB 20AD10          	   188:   jsr lcd_wait
+00:10FE 48              	   189:   pha
+00:10FF 4A              	   190:   lsr
+00:1100 4A              	   191:   lsr
+00:1101 4A              	   192:   lsr
+00:1102 4A              	   193:   lsr            ; Send high 4 bits
+00:1103 8D0060          	   194:   sta PORTB
+00:1106 0940            	   195:   ora #E         ; Set E bit to send instruction
+00:1108 8D0060          	   196:   sta PORTB
+00:110B 4940            	   197:   eor #E         ; Clear E bit
+00:110D 8D0060          	   198:   sta PORTB
+00:1110 68              	   199:   pla
+00:1111 290F            	   200:   and #%00001111 ; Send low 4 bits
+00:1113 8D0060          	   201:   sta PORTB
+00:1116 0940            	   202:   ora #E         ; Set E bit to send instruction
+00:1118 8D0060          	   203:   sta PORTB
+00:111B 4940            	   204:   eor #E         ; Clear E bit
+00:111D 8D0060          	   205:   sta PORTB
+00:1120 60              	   206:   rts
+                        	   207: 
+                        	   208: 
+
+
+Symbols by name:
+DDRA                             E:6003
+DDRB                             E:6002
+E                                E:0040
+ECHO                             E:FFEF
+PORTB                            E:6000
+RS                               E:0010
+RW                               E:0020
+WOZMON                           E:FF00
+done                             A:1037
+get_input                        A:105E
+input_lcd                        A:1000
+lcd_done                         A:1026
+lcd_init                         A:10DF
+lcd_instruction                  A:10FB
+lcd_setup                        A:105F
+lcd_wait                         A:10AD
+lcdbusy                          A:10B3
+line_1                           A:103A
+line_2                           A:103C
+out_line_1                       A:1003
+out_line_2                       A:1011
+print_char                       A:1083
+print_line_1                     A:1005
+print_line_2                     A:101A
+print_prompt_loop                A:1028
+prompt                           A:104D
+prompt_done                      A:1034
+
+Symbols by value:
+0010 RS
+0020 RW
+0040 E
+1000 input_lcd
+1003 out_line_1
+1005 print_line_1
+1011 out_line_2
+101A print_line_2
+1026 lcd_done
+1028 print_prompt_loop
+1034 prompt_done
+1037 done
+103A line_1
+103C line_2
+104D prompt
+105E get_input
+105F lcd_setup
+1083 print_char
+10AD lcd_wait
+10B3 lcdbusy
+10DF lcd_init
+10FB lcd_instruction
+6000 PORTB
+6002 DDRB
+6003 DDRA
+FF00 WOZMON
+FFEF ECHO
