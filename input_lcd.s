@@ -21,10 +21,18 @@ IER = $600e
 E  = %01000000
 RW = %00100000
 RS = %00010000
+; Serial port
+ACIA_DATA   = $5000
+ACIA_STATUS = $5001
+ACIA_CMD    = $5002
+ACIA_CTRL   = $5003
 ; --- Wozmon entry points and defines.
 WOZMON = $FF00
 IN    = $0200                          ; Input buffer
 ECHO  = $FFEF
+save_y = $50
+save_x = $51
+
 ; ------- program start. 
 ; Start at 01000x in RAM using WozMon
   .org $1000
@@ -75,8 +83,19 @@ print_prompt_loop:
 prompt_done:
 
 ; now setup with default messages.
+; Reset LCD to first char.
+  lda #%10000000 ; set dram address - add in the character offset 
+  jsr lcd_instruction
 ; grab buffer
   jsr get_input
+  ldx #0
+out_lcd:
+  lda IN,x 
+  cmp #$0D
+  beq done
+  jsr print_char
+  inx 
+  jmp out_lcd
 
 done:
   jmp WOZMON  ; return to wozmon.
@@ -89,8 +108,41 @@ line_2: .asciiz ". 65C02 Computer"
 prompt: .asciiz "Enter a string: "
 
 get_input:
-;; custom version of GETLINE from Wozmon.
 
+  ldy #$00
+
+read_char:
+  lda     ACIA_STATUS    ; Check status.
+  and     #$08           ; Key ready?
+  beq     read_char       ; Loop until ready.
+  lda     ACIA_DATA      ; Load character. B7 will be '0'.
+  sta     IN,Y           ; Add to text buffer.
+  jsr     ECHO           ; Display character.
+  ;; custom version of GETLINE from Wozmon.
+  cmp     #$08           ; Backspace key?
+  beq     backspace      ; Yes.
+  cmp     #$1B           ; ESC?
+  beq     escape         ; Yes.
+  cmp     #$0D    ; CR?
+  beq     input_done
+
+  sty save_y
+  iny                    ; Advance text index.
+  bmi     escape       ; Auto ESC if line longer than 127.
+  jmp read_char
+
+escape:
+  lda     #$5C           ; "\".
+  jsr     ECHO           ; Output it.
+  jmp get_input
+
+backspace:      
+  dey                    ; Back up text index.
+  bmi     get_input        ; Beyond start of line, reinitialize.
+  jmp read_char
+
+input_done:
+  sty save_y
   rts
 
 
